@@ -65,14 +65,14 @@ jobs:
             echo "paused=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Require OpenAI API secret
+      - name: Require Gemini API secret
         if: steps.pause.outputs.paused != 'true'
         shell: bash
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          if [ -z "$OPENAI_API_KEY" ]; then
-            echo "::error::Add OPENAI_API_KEY in Settings > Secrets and variables > Actions. Codex requires a separately billed API key."
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::error::Add GEMINI_API_KEY in Settings > Secrets and variables > Actions."
             exit 1
           fi
 
@@ -93,15 +93,12 @@ jobs:
           python3 tool/configure_android.py
           flutter pub get
 
-      - name: Implement next roadmap increment
+      - name: Implement next roadmap increment with Gemini CLI
         if: steps.pause.outputs.paused != 'true'
-        id: codex
-        uses: openai/codex-action@v1
+        id: gemini
+        uses: google-github-actions/run-gemini-cli@v0
         with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          permission-profile: ":workspace"
-          allow-bots: true
-          effort: high
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
             Continue implementing ${{ github.repository }} toward a genuinely working,
             production-ready Android app. Read AGENTS.md, README.md, docs/STATUS.md,
@@ -161,7 +158,7 @@ jobs:
           exit 0
 
       - name: Pause if Codex reports a human-only gate
-        if: steps.pause.outputs.paused != 'true' && (contains(steps.codex.outputs.final-message, 'CLAWDSTUDIO_PRODUCTION_READY') || contains(steps.codex.outputs.final-message, 'CLAWDSTUDIO_BLOCKED'))
+        if: steps.pause.outputs.paused != 'true' && (contains(steps.gemini.outputs.summary, 'CLAWDSTUDIO_PRODUCTION_READY') || contains(steps.gemini.outputs.summary, 'CLAWDSTUDIO_BLOCKED'))
         run: |
           mkdir -p .github
           cat > .github/AUTONOMOUS_DEV_PAUSED <<'EOF'
@@ -213,7 +210,7 @@ jobs:
           gh workflow run flutter-ci.yml --repo "$GITHUB_REPOSITORY" --ref "$TARGET_BRANCH"
 
       - name: Continue immediately when more work remains
-        if: always() && steps.pause.outputs.paused != 'true' && steps.push.outputs.changed == 'true' && !contains(steps.codex.outputs.final-message, 'CLAWDSTUDIO_PRODUCTION_READY') && !contains(steps.codex.outputs.final-message, 'CLAWDSTUDIO_BLOCKED')
+        if: always() && steps.pause.outputs.paused != 'true' && steps.push.outputs.changed == 'true' && !contains(steps.gemini.outputs.summary, 'CLAWDSTUDIO_PRODUCTION_READY') && !contains(steps.gemini.outputs.summary, 'CLAWDSTUDIO_BLOCKED')
         shell: bash
         env:
           DEPTH: ${{ env.CHAIN_DEPTH }}
