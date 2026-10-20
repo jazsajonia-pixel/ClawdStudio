@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'engine/termux_engine.dart';
 
 void main() {
   runApp(const ClawdStudioApp());
@@ -217,28 +218,85 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class EngineScreen extends StatelessWidget {
+class EngineScreen extends StatefulWidget {
   const EngineScreen({super.key});
+
+  @override
+  State<EngineScreen> createState() => _EngineScreenState();
+}
+
+class _EngineScreenState extends State<EngineScreen> {
+  bool _checking = false;
+  bool _running = false;
+  Map<String, Object?>? _status;
+  Map<String, Object?>? _diagnostic;
+  String? _error;
+
+  Future<void> _checkSetup() async {
+    setState(() {
+      _checking = true;
+      _error = null;
+    });
+    try {
+      final status = await TermuxEngine.checkStatus();
+      if (!mounted) return;
+      setState(() => _status = status);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = 'Native Android bridge unavailable: $error');
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  Future<void> _runDiagnostic() async {
+    setState(() {
+      _running = true;
+      _diagnostic = null;
+      _error = null;
+    });
+    try {
+      final result = await TermuxEngine.runDiagnostic();
+      if (!mounted) return;
+      setState(() {
+        _diagnostic = result;
+        if (result['ok'] != true) {
+          _error = (result['error'] as String?) ??
+              'Termux did not confirm a successful diagnostic.';
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = 'Unable to run Termux diagnostic: $error');
+    } finally {
+      if (mounted) setState(() => _running = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final installed = _status?['installed'] == true;
+    final permission = _status?['permissionGranted'] == true;
+    final service = _status?['serviceAvailable'] == true;
+    final connected = _diagnostic?['ok'] == true;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
       children: [
         Text(
           'Engine setup',
-          style: Theme.of(
-            context,
-          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
+          style: Theme.of(context)
+              .textTheme
+              .headlineMedium
+              ?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 8),
         Text(
-          'Clawd-Code is a Python coding-agent engine, not an AI model. The Android runtime approach must be proven before agent tasks can run.',
+          'Clawd-Code is a Python coding-agent engine, not an AI model. This step checks the optional Termux companion runtime; it does not claim that the coding agent is running.',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: colors.onSurfaceVariant,
-            height: 1.45,
-          ),
+                color: colors.onSurfaceVariant,
+                height: 1.45,
+              ),
         ),
         const SizedBox(height: 20),
         Card(
@@ -249,22 +307,25 @@ class EngineScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.warning_amber_rounded, color: colors.tertiary),
+                    Icon(
+                      connected ? Icons.check_circle_outline : Icons.terminal,
+                      color: connected ? colors.primary : colors.tertiary,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Runtime verification required',
-                        style: Theme.of(context).textTheme.titleMedium
+                        connected
+                            ? 'Termux diagnostic passed'
+                            : 'Termux runtime diagnostic',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  'This build does not install Python, start Termux, or launch an engine process. No runtime option has been tested on a physical Android device yet.',
-                ),
-                const SizedBox(height: 14),
                 const _RevisionLine(
                   label: 'Upstream repository',
                   value: 'GPT-AGI / Clawd-Code',
@@ -274,9 +335,65 @@ class EngineScreen extends StatelessWidget {
                   value: '5a5e4dd8d6c4',
                 ),
                 const _RevisionLine(label: 'License', value: 'MIT (upstream)'),
-                const _RevisionLine(
-                  label: 'App connection',
-                  value: 'Not implemented',
+                _RevisionLine(
+                  label: 'Termux installed',
+                  value: _status == null ? 'Not checked' : (installed ? 'Yes' : 'No'),
+                ),
+                _RevisionLine(
+                  label: 'Run-command permission',
+                  value: _status == null
+                      ? 'Not checked'
+                      : (permission ? 'Granted' : 'Not granted'),
+                ),
+                _RevisionLine(
+                  label: 'RunCommand service',
+                  value: _status == null
+                      ? 'Not checked'
+                      : (service ? 'Available' : 'Unavailable'),
+                ),
+                if (_diagnostic != null)
+                  _RevisionLine(
+                    label: 'Diagnostic result',
+                    value: connected ? 'Verified marker returned' : 'Failed',
+                  ),
+                if ((_diagnostic?['stdout'] as String?)?.isNotEmpty == true) ...[
+                  const SizedBox(height: 8),
+                  Text('Output', style: Theme.of(context).textTheme.labelLarge),
+                  const SizedBox(height: 4),
+                  SelectableText((_diagnostic?['stdout'] as String).trim()),
+                ],
+                if ((_diagnostic?['stderr'] as String?)?.isNotEmpty == true)
+                  SelectableText(
+                    'stderr: ${_diagnostic?['stderr']}',
+                    style: TextStyle(color: colors.error),
+                  ),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(_error!, style: TextStyle(color: colors.error)),
+                ],
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: _checking ? null : _checkSetup,
+                  icon: _checking
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.search),
+                  label: Text(_checking ? 'Checking…' : 'Check Termux setup'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _running ? null : _runDiagnostic,
+                  icon: _running
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.play_arrow),
+                  label: Text(_running ? 'Running diagnostic…' : 'Run safe diagnostic'),
                 ),
               ],
             ),
@@ -284,23 +401,23 @@ class EngineScreen extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         Text(
-          'Required proof',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          'Setup requirements',
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
-        const _ChecklistLine(
-          text: 'Start a real engine in a supported Android runtime.',
-        ),
-        const _ChecklistLine(
-          text: 'Send a prompt and display the actual response.',
-        ),
-        const _ChecklistLine(
-          text: 'Run one real tool against a disposable workspace.',
-        ),
-        const _ChecklistLine(
-          text: 'Verify cancellation, bridge authentication and disconnect.',
+        const _ChecklistLine(text: 'Install Termux from an official source and open it once.'),
+        const _ChecklistLine(text: 'Enable allow-external-apps=true in ~/.termux/termux.properties, then restart Termux.'),
+        const _ChecklistLine(text: 'Grant ClawdStudio the “Run commands in Termux environment” permission in Android app settings.'),
+        const _ChecklistLine(text: 'The diagnostic runs only a fixed printf command; arbitrary shell commands are not exposed.'),
+        const SizedBox(height: 10),
+        Text(
+          'This is only a transport diagnostic. The real Clawd-Code agent loop, provider calls, and workspace tools are not integrated yet.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
         ),
       ],
     );
