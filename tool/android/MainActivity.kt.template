@@ -106,7 +106,7 @@ class MainActivity : FlutterActivity() {
             putExtra("com.termux.RUN_COMMAND_LABEL", "ClawdStudio diagnostic")
             putExtra("com.termux.RUN_COMMAND_DESCRIPTION", "Runs a fixed, non-destructive ClawdStudio connection check.")
             // Termux's documented RUN_COMMAND pending-intent extra.
-            putExtra("pendingIntent", callback)
+            putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", callback)
         }
 
         pendingResults[executionId] = result
