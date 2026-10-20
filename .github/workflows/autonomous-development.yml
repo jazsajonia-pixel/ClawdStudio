@@ -111,9 +111,9 @@ jobs:
             changing it. Do not invent physical-device, provider, or agent-loop test
             results. Never commit secrets, credentials, private workspace data or keys.
 
-            Preserve security boundaries: no arbitrary model-generated shell execution;
-            workspace-scoped file operations; secret redaction; bounded loops, timeouts,
-            cancellation, and approval before destructive operations. Do not modify
+            Preserve security boundaries: keep edits scoped to the repository workspace; never
+            print or commit secrets; keep loops and commands bounded; do not perform
+            destructive operations, access unrelated files, or change repository settings. Do not modify
             this workflow or its permissions. Do not merge or publish releases.
 
             Finish other safe work even if a phone check is still needed. If all
@@ -157,7 +157,7 @@ jobs:
           tail -n 160 /tmp/clawd-checks.log >> "$GITHUB_STEP_SUMMARY"
           exit 0
 
-      - name: Pause if Codex reports a human-only gate
+      - name: Pause if Gemini reports a human-only gate
         if: steps.pause.outputs.paused != 'true' && (contains(steps.gemini.outputs.summary, 'CLAWDSTUDIO_PRODUCTION_READY') || contains(steps.gemini.outputs.summary, 'CLAWDSTUDIO_BLOCKED'))
         run: |
           mkdir -p .github
