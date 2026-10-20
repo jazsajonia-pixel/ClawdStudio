@@ -28,6 +28,8 @@ jobs:
           if [ ! -d android ]; then
             flutter create --platforms=android --project-name=clawd_studio --org=dev.clawdstudio .
           fi
+      - name: Configure native Termux bridge
+        run: python3 tool/configure_android.py
       - name: Install dependencies
         run: flutter pub get
       - name: Check formatting
