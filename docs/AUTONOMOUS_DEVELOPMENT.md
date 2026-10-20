@@ -14,7 +14,7 @@
 - Works on the existing Termux diagnostic PR branch while it exists; otherwise creates a persistent automation branch.
 - Runs the official Google Gemini CLI GitHub Action (`google-github-actions/run-gemini-cli`) with Gemini API authentication, then runs Dart formatting, analysis, Flutter tests, and a debug APK build.
 - Commits incremental work and creates or updates a PR. If there are changes and work remains, it queues up to three immediate follow-up passes; the scheduled timer resumes later.
-- If Codex explicitly reports production-candidate completion or a human-only blocker, the workflow writes `.github/AUTONOMOUS_DEV_PAUSED` and stops future passes until that marker is removed.
+- If Gemini explicitly reports production-candidate completion or a human-only blocker, the workflow writes `.github/AUTONOMOUS_DEV_PAUSED` and stops future passes until that marker is removed.
 - If checks fail, changes are preserved for a later repair pass. A failed check is never treated as production-ready.
 
 ## Boundaries and costs
