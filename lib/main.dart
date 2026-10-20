@@ -13,7 +13,7 @@ class ClawdStudioApp extends StatelessWidget {
     return MaterialApp(
       title: 'ClawdStudio',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.dark,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.light),
@@ -214,7 +214,7 @@ class SettingsScreen extends StatelessWidget {
         const SizedBox(height: 20),
         const _SettingsRow(icon: Icons.smart_toy_outlined, title: 'AI providers', subtitle: 'Not configured · setup not implemented'),
         const _SettingsRow(icon: Icons.account_tree_outlined, title: 'GitHub', subtitle: 'Not connected · OAuth not implemented'),
-        const _SettingsRow(icon: Icons.palette_outlined, title: 'Appearance', subtitle: 'Follows system theme'),
+        const _SettingsRow(icon: Icons.palette_outlined, title: 'Appearance', subtitle: 'Dark by default · light theme supported; selector planned'),
         const _SettingsRow(icon: Icons.info_outline_rounded, title: 'About ClawdStudio', subtitle: 'Preview foundation · v0.1.0'),
         const SizedBox(height: 18),
         Text('Provider availability, pricing and model capabilities will be verified from official sources before they are shown as supported.',
