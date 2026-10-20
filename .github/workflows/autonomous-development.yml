@@ -1,0 +1,230 @@
+name: ClawdStudio Autonomous Development
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      chain_depth:
+        description: Immediate continuation depth (managed by workflow)
+        required: false
+        default: "0"
+        type: string
+
+concurrency:
+  group: clawdstudio-autonomous-development
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  develop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_BRANCH: feat/termux-diagnostic-bridge
+      CHAIN_DEPTH: ${{ inputs.chain_depth || '0' }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Select persistent development branch
+        id: branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin "$TARGET_BRANCH" >/dev/null 2>&1; then
+            git fetch origin "$TARGET_BRANCH"
+            git switch --track -c "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          else
+            TARGET_BRANCH="automation/clawd-studio-autonomous"
+            if git ls-remote --exit-code --heads origin "$TARGET_BRANCH" >/dev/null 2>&1; then
+              git fetch origin "$TARGET_BRANCH"
+              git switch --track -c "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+            else
+              git switch -c "$TARGET_BRANCH" origin/main
+            fi
+          fi
+          echo "target_branch=$TARGET_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Check pause marker
+        id: pause
+        shell: bash
+        run: |
+          if [ -f .github/AUTONOMOUS_DEV_PAUSED ]; then
+            echo "paused=true" >> "$GITHUB_OUTPUT"
+            echo "Autonomous development is paused. Read .github/AUTONOMOUS_DEV_PAUSED." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "paused=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require OpenAI API secret
+        if: steps.pause.outputs.paused != 'true'
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::Add OPENAI_API_KEY in Settings > Secrets and variables > Actions. Codex requires a separately billed API key."
+            exit 1
+          fi
+
+      - name: Set up Flutter
+        if: steps.pause.outputs.paused != 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepare Android scaffold and dependencies
+        if: steps.pause.outputs.paused != 'true'
+        run: |
+          set -euo pipefail
+          if [ ! -d android ]; then
+            flutter create --platforms=android --project-name=clawd_studio --org=dev.clawdstudio .
+          fi
+          python3 tool/configure_android.py
+          flutter pub get
+
+      - name: Implement next roadmap increment
+        if: steps.pause.outputs.paused != 'true'
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          allow-bots: true
+          effort: high
+          prompt: |
+            Continue implementing ${{ github.repository }} toward a genuinely working,
+            production-ready Android app. Read AGENTS.md, README.md, docs/STATUS.md,
+            docs/ARCHITECTURE.md, docs/SECURITY.md, docs/TESTING.md, docs/ROADMAP.md,
+            and the relevant source/tests before coding. Select the highest-priority
+            unfinished roadmap item that can be implemented safely in this pass.
+            Make a small, real, tested increment; update relevant docs/tests. Do not
+            repeat completed work or present placeholders as finished functionality.
+            Respect the existing Termux prototype decision unless evidence justifies
+            changing it. Do not invent physical-device, provider, or agent-loop test
+            results. Never commit secrets, credentials, private workspace data or keys.
+
+            Preserve security boundaries: no arbitrary model-generated shell execution;
+            workspace-scoped file operations; secret redaction; bounded loops, timeouts,
+            cancellation, and approval before destructive operations. Do not modify
+            this workflow or its permissions. Do not merge or publish releases.
+
+            Finish other safe work even if a phone check is still needed. If all
+            implementation and CI-level acceptance work is genuinely complete and only
+            a human/device/signing gate remains, explain that and output
+            CLAWDSTUDIO_PRODUCTION_READY. If no safe meaningful change remains because
+            a user/device decision is required, output CLAWDSTUDIO_BLOCKED and the
+            specific reason. Otherwise report changes, checks attempted, and next step.
+
+      - name: Run format, analysis, tests, and debug APK build
+        if: steps.pause.outputs.paused != 'true'
+        id: verify
+        shell: bash
+        run: |
+          set +e
+          : > /tmp/clawd-checks.log
+          check() {
+            label="$1"; shift
+            echo "## $label" >> /tmp/clawd-checks.log
+            "$@" >> /tmp/clawd-checks.log 2>&1
+            rc=$?
+            echo "$label=$rc" >> "$GITHUB_OUTPUT"
+            if [ "$rc" -eq 0 ]; then
+              echo "- $label: PASS" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- $label: FAIL ($rc)" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
+          dart format .
+          check format_check dart format --set-exit-if-changed .
+          check diff_check git diff --check
+          check analyze flutter analyze
+          check tests flutter test
+          check debug_apk flutter build apk --debug
+          if grep -Eq '=(1|[2-9][0-9]*)$' "$GITHUB_OUTPUT"; then
+            echo "checks_passed=false" >> "$GITHUB_OUTPUT"
+            echo "Checks failed; changes are retained on the development branch for a repair pass." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "checks_passed=true" >> "$GITHUB_OUTPUT"
+          fi
+          tail -n 160 /tmp/clawd-checks.log >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
+      - name: Pause if Codex reports a human-only gate
+        if: steps.pause.outputs.paused != 'true' && (contains(steps.codex.outputs.final-message, 'CLAWDSTUDIO_PRODUCTION_READY') || contains(steps.codex.outputs.final-message, 'CLAWDSTUDIO_BLOCKED'))
+        run: |
+          mkdir -p .github
+          cat > .github/AUTONOMOUS_DEV_PAUSED <<'EOF'
+          Autonomous development paused at a human-only acceptance gate.
+          Read the latest workflow run and pull request before resuming.
+          To resume, remove this file from the development branch and rerun the workflow.
+          EOF
+
+      - name: Commit and push incremental progress
+        if: steps.pause.outputs.paused != 'true'
+        id: push
+        shell: bash
+        env:
+          TARGET_BRANCH: ${{ steps.branch.outputs.target_branch }}
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes to commit." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Autonomous ClawdStudio development"
+          git push origin "HEAD:$TARGET_BRANCH"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create a pull request if needed
+        if: steps.push.outputs.changed == 'true'
+        shell: bash
+        env:
+          TARGET_BRANCH: ${{ steps.branch.outputs.target_branch }}
+        run: |
+          set -euo pipefail
+          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$TARGET_BRANCH" --base main --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$number" ]; then
+            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$TARGET_BRANCH" \
+              --title "ClawdStudio autonomous development" \
+              --body "Automated incremental implementation. Review the workflow run, CI results, docs/STATUS.md and docs/ROADMAP.md. This PR is not automatically merged or released."
+          fi
+
+      - name: Dispatch CI on the updated branch
+        if: steps.push.outputs.changed == 'true'
+        shell: bash
+        env:
+          TARGET_BRANCH: ${{ steps.branch.outputs.target_branch }}
+        run: |
+          gh workflow run flutter-ci.yml --repo "$GITHUB_REPOSITORY" --ref "$TARGET_BRANCH"
+
+      - name: Continue immediately when more work remains
+        if: always() && steps.pause.outputs.paused != 'true' && steps.push.outputs.changed == 'true' && !contains(steps.codex.outputs.final-message, 'CLAWDSTUDIO_PRODUCTION_READY') && !contains(steps.codex.outputs.final-message, 'CLAWDSTUDIO_BLOCKED')
+        shell: bash
+        env:
+          DEPTH: ${{ env.CHAIN_DEPTH }}
+        run: |
+          set -euo pipefail
+          depth="$DEPTH"
+          if ! [[ "$depth" =~ ^[0-9]+$ ]]; then depth=0; fi
+          if [ "$depth" -lt 3 ]; then
+            next_depth=$((depth + 1))
+            gh workflow run autonomous-development.yml --repo "$GITHUB_REPOSITORY" --ref main -f "chain_depth=$next_depth"
+            echo "Queued immediate continuation $next_depth/3." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Immediate continuation limit reached; scheduled run resumes in 30 minutes." >> "$GITHUB_STEP_SUMMARY"
+          fi
