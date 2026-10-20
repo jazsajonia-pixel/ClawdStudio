@@ -1,15 +1,7 @@
 name: ClawdStudio Autonomous Development
 
 on:
-  schedule:
-    - cron: "*/30 * * * *"
   workflow_dispatch:
-    inputs:
-      chain_depth:
-        description: Immediate continuation depth (managed by workflow)
-        required: false
-        default: "0"
-        type: string
 
 concurrency:
   group: clawdstudio-autonomous-development
@@ -209,19 +201,3 @@ jobs:
         run: |
           gh workflow run flutter-ci.yml --repo "$GITHUB_REPOSITORY" --ref "$TARGET_BRANCH"
 
-      - name: Continue immediately when more work remains
-        if: always() && steps.pause.outputs.paused != 'true' && steps.push.outputs.changed == 'true' && !contains(steps.gemini.outputs.summary, 'CLAWDSTUDIO_PRODUCTION_READY') && !contains(steps.gemini.outputs.summary, 'CLAWDSTUDIO_BLOCKED')
-        shell: bash
-        env:
-          DEPTH: ${{ env.CHAIN_DEPTH }}
-        run: |
-          set -euo pipefail
-          depth="$DEPTH"
-          if ! [[ "$depth" =~ ^[0-9]+$ ]]; then depth=0; fi
-          if [ "$depth" -lt 3 ]; then
-            next_depth=$((depth + 1))
-            gh workflow run autonomous-development.yml --repo "$GITHUB_REPOSITORY" --ref main -f "chain_depth=$next_depth"
-            echo "Queued immediate continuation $next_depth/3." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Immediate continuation limit reached; scheduled run resumes in 30 minutes." >> "$GITHUB_STEP_SUMMARY"
-          fi
