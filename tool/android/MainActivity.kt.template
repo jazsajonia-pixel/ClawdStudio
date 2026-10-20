@@ -132,25 +132,4 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    fun readTermuxResult(intent: Intent): Map<String, Any?> {
-        val bundle = intent.getBundleExtra(RESULT_BUNDLE)
-        if (bundle == null) {
-            return mapOf("ok" to false, "error" to "Termux returned no result bundle.")
-        }
-        val stdout = bundle.getString("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_STDOUT", "").orEmpty()
-        val stderr = bundle.getString("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_STDERR", "").orEmpty()
-        val exitCode = bundle.getInt("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_EXIT_CODE", -1)
-        val errorCode = bundle.getInt("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_ERR", -1)
-        val errorMessage = bundle.getString("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_ERRMSG", "").orEmpty()
-        val ok = errorCode == -1 && exitCode == 0 && stdout.contains("CLAWDSTUDIO_TERMUX_OK")
-        return mapOf(
-            "ok" to ok,
-            "stdout" to stdout.take(4000),
-            "stderr" to stderr.take(2000),
-            "exitCode" to exitCode,
-            "errorCode" to errorCode,
-            "errorMessage" to errorMessage.take(2000),
-            "error" to if (ok) null else "Termux diagnostic did not return the expected marker and successful exit code.",
-        )
-    }
 }
