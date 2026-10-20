@@ -17,7 +17,9 @@ void main() {
 
     await tester.tap(find.text('Engine').last);
     await tester.pumpAndSettle();
-    expect(find.text('Runtime verification required'), findsOneWidget);
+    expect(find.text('Termux runtime diagnostic'), findsOneWidget);
+    expect(find.text('Check Termux setup'), findsOneWidget);
+    expect(find.text('Run safe diagnostic'), findsOneWidget);
 
     await tester.tap(find.text('Settings').last);
     await tester.pumpAndSettle();
