@@ -261,7 +261,8 @@ class _EngineScreenState extends State<EngineScreen> {
       setState(() {
         _diagnostic = result;
         if (result['ok'] != true) {
-          _error = (result['error'] as String?) ??
+          _error =
+              (result['error'] as String?) ??
               'Termux did not confirm a successful diagnostic.';
         }
       });
@@ -285,18 +286,17 @@ class _EngineScreenState extends State<EngineScreen> {
       children: [
         Text(
           'Engine setup',
-          style: Theme.of(context)
-              .textTheme
-              .headlineMedium
-              ?.copyWith(fontWeight: FontWeight.w800),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 8),
         Text(
           'Clawd-Code is a Python coding-agent engine, not an AI model. This step checks the optional Termux companion runtime; it does not claim that the coding agent is running.',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: colors.onSurfaceVariant,
-                height: 1.45,
-              ),
+            color: colors.onSurfaceVariant,
+            height: 1.45,
+          ),
         ),
         const SizedBox(height: 20),
         Card(
@@ -317,9 +317,7 @@ class _EngineScreenState extends State<EngineScreen> {
                         connected
                             ? 'Termux diagnostic passed'
                             : 'Termux runtime diagnostic',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
+                        style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
@@ -337,7 +335,9 @@ class _EngineScreenState extends State<EngineScreen> {
                 const _RevisionLine(label: 'License', value: 'MIT (upstream)'),
                 _RevisionLine(
                   label: 'Termux installed',
-                  value: _status == null ? 'Not checked' : (installed ? 'Yes' : 'No'),
+                  value: _status == null
+                      ? 'Not checked'
+                      : (installed ? 'Yes' : 'No'),
                 ),
                 _RevisionLine(
                   label: 'Run-command permission',
@@ -356,7 +356,8 @@ class _EngineScreenState extends State<EngineScreen> {
                     label: 'Diagnostic result',
                     value: connected ? 'Verified marker returned' : 'Failed',
                   ),
-                if ((_diagnostic?['stdout'] as String?)?.isNotEmpty == true) ...[
+                if ((_diagnostic?['stdout'] as String?)?.isNotEmpty ==
+                    true) ...[
                   const SizedBox(height: 8),
                   Text('Output', style: Theme.of(context).textTheme.labelLarge),
                   const SizedBox(height: 4),
@@ -393,7 +394,9 @@ class _EngineScreenState extends State<EngineScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.play_arrow),
-                  label: Text(_running ? 'Running diagnostic…' : 'Run safe diagnostic'),
+                  label: Text(
+                    _running ? 'Running diagnostic…' : 'Run safe diagnostic',
+                  ),
                 ),
               ],
             ),
@@ -402,22 +405,32 @@ class _EngineScreenState extends State<EngineScreen> {
         const SizedBox(height: 14),
         Text(
           'Setup requirements',
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
-        const _ChecklistLine(text: 'Install Termux from an official source and open it once.'),
-        const _ChecklistLine(text: 'Enable allow-external-apps=true in ~/.termux/termux.properties, then restart Termux.'),
-        const _ChecklistLine(text: 'Grant ClawdStudio the “Run commands in Termux environment” permission in Android app settings.'),
-        const _ChecklistLine(text: 'The diagnostic runs only a fixed printf command; arbitrary shell commands are not exposed.'),
+        const _ChecklistLine(
+          text: 'Install Termux from an official source and open it once.',
+        ),
+        const _ChecklistLine(
+          text:
+              'Enable allow-external-apps=true in ~/.termux/termux.properties, then restart Termux.',
+        ),
+        const _ChecklistLine(
+          text:
+              'Grant ClawdStudio the “Run commands in Termux environment” permission in Android app settings.',
+        ),
+        const _ChecklistLine(
+          text:
+              'The diagnostic runs only a fixed printf command; arbitrary shell commands are not exposed.',
+        ),
         const SizedBox(height: 10),
         Text(
           'This is only a transport diagnostic. The real Clawd-Code agent loop, provider calls, and workspace tools are not integrated yet.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
         ),
       ],
     );

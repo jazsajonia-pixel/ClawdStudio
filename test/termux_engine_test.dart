@@ -10,23 +10,23 @@ void main() {
     calls.clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
-      calls.add(call.method);
-      if (call.method == 'checkStatus') {
-        return <String, Object?>{
-          'installed': true,
-          'permissionGranted': true,
-          'serviceAvailable': true,
-        };
-      }
-      if (call.method == 'runDiagnostic') {
-        return <String, Object?>{
-          'ok': true,
-          'stdout': 'CLAWDSTUDIO_TERMUX_OK',
-          'exitCode': 0,
-        };
-      }
-      return null;
-    });
+          calls.add(call.method);
+          if (call.method == 'checkStatus') {
+            return <String, Object?>{
+              'installed': true,
+              'permissionGranted': true,
+              'serviceAvailable': true,
+            };
+          }
+          if (call.method == 'runDiagnostic') {
+            return <String, Object?>{
+              'ok': true,
+              'stdout': 'CLAWDSTUDIO_TERMUX_OK',
+              'exitCode': 0,
+            };
+          }
+          return null;
+        });
   });
 
   tearDown(() {
