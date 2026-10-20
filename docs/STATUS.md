@@ -20,4 +20,4 @@
 ## Verification
 - Foundation CI run #39425224277 passed formatting, analyzer, widget tests, and Android debug APK build at `59c65c2932b8db5fad7ac293d6d1faca762d994a`.
 - Official Termux RUN_COMMAND documentation reviewed; native adapter uses documented command/result intent pattern.
-- This code change has not yet passed CI at the time this note was written. No Termux process, provider API, Clawd-Code agent, emulator or physical-device test was run. The bridge remains **unverified on-device**.
+- CI run #39429069442 passed formatting, diff check, analyzer, Flutter tests, and Android debug APK build/upload at commit `70dbe1c096fd4d698700b0b3c5850cc95c0ae41c` (Flutter stable 3.47.7). The resulting artifact is a debug/test APK, not a release. No Termux process, provider API, Clawd-Code agent, emulator or physical-device test was run. The bridge remains **unverified on-device**.
