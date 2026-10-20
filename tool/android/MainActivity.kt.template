@@ -1,0 +1,156 @@
+package __PACKAGE_NAME__
+
+import android.app.PendingIntent
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
+
+class MainActivity : FlutterActivity() {
+    companion object {
+        private const val CHANNEL = "clawdstudio/termux"
+        private const val TERMUX_PACKAGE = "com.termux"
+        private const val RUN_COMMAND_PERMISSION = "com.termux.permission.RUN_COMMAND"
+        private const val RUN_COMMAND_ACTION = "com.termux.RUN_COMMAND"
+        private const val RUN_COMMAND_SERVICE = "com.termux.app.RunCommandService"
+        private const val RESULT_BUNDLE = "com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE"
+        private val nextExecutionId = AtomicInteger(1000)
+        private val pendingResults = ConcurrentHashMap<Int, MethodChannel.Result>()
+        private val mainHandler = Handler(Looper.getMainLooper())
+
+        fun deliverTermuxResult(executionId: Int, payload: Map<String, Any?>) {
+            val pending = pendingResults.remove(executionId) ?: return
+            mainHandler.post { pending.success(payload) }
+        }
+    }
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "checkStatus" -> result.success(checkStatus())
+                    "runDiagnostic" -> runDiagnostic(result)
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun checkStatus(): Map<String, Any?> {
+        val installed = try {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(TERMUX_PACKAGE, 0)
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
+        }
+        val permissionGranted = checkSelfPermission(RUN_COMMAND_PERMISSION) ==
+            PackageManager.PERMISSION_GRANTED
+        val serviceAvailable = if (installed) {
+            val intent = Intent(RUN_COMMAND_ACTION).setClassName(
+                TERMUX_PACKAGE,
+                RUN_COMMAND_SERVICE
+            )
+            packageManager.resolveService(intent, PackageManager.MATCH_DEFAULT_ONLY) != null
+        } else {
+            false
+        }
+        return mapOf(
+            "installed" to installed,
+            "permissionGranted" to permissionGranted,
+            "serviceAvailable" to serviceAvailable,
+        )
+    }
+
+    private fun runDiagnostic(result: MethodChannel.Result) {
+        val status = checkStatus()
+        if (status["installed"] != true) {
+            result.success(mapOf("ok" to false, "error" to "Termux is not installed. Install Termux, open it once, then retry."))
+            return
+        }
+        if (status["permissionGranted"] != true) {
+            result.success(mapOf("ok" to false, "error" to "Grant ClawdStudio the 'Run commands in Termux environment' permission in Android Settings > Apps > ClawdStudio > Permissions."))
+            return
+        }
+        if (status["serviceAvailable"] != true) {
+            result.success(mapOf("ok" to false, "error" to "Termux RUN_COMMAND service was not found. Update Termux and open it once."))
+            return
+        }
+
+        val executionId = nextExecutionId.getAndIncrement()
+        val callbackIntent = Intent(this, TermuxResultReceiver::class.java)
+            .putExtra("clawdstudio_execution_id", executionId)
+        val pendingIntentFlags = PendingIntent.FLAG_ONE_SHOT or
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
+        val callback = PendingIntent.getBroadcast(
+            this,
+            executionId,
+            callbackIntent,
+            pendingIntentFlags
+        )
+
+        val command = Intent(RUN_COMMAND_ACTION).setClassName(
+            TERMUX_PACKAGE,
+            RUN_COMMAND_SERVICE
+        ).apply {
+            putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/sh")
+            putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-c", "printf 'CLAWDSTUDIO_TERMUX_OK\\n'"))
+            putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
+            putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
+            putExtra("com.termux.RUN_COMMAND_LABEL", "ClawdStudio diagnostic")
+            putExtra("com.termux.RUN_COMMAND_DESCRIPTION", "Runs a fixed, non-destructive ClawdStudio connection check.")
+            // Termux's documented RUN_COMMAND pending-intent extra.
+            putExtra("pendingIntent", callback)
+        }
+
+        pendingResults[executionId] = result
+        mainHandler.postDelayed({
+            deliverTermuxResult(
+                executionId,
+                mapOf("ok" to false, "timedOut" to true, "error" to "No result returned within 30 seconds. Check Termux setup and try again.")
+            )
+        }, 30_000)
+
+        try {
+            startService(command)
+        } catch (security: SecurityException) {
+            deliverTermuxResult(
+                executionId,
+                mapOf("ok" to false, "error" to "Termux denied the request. Check the RUN_COMMAND permission and allow-external-apps setting.")
+            )
+        } catch (error: Exception) {
+            deliverTermuxResult(
+                executionId,
+                mapOf("ok" to false, "error" to (error.message ?: "Unable to start Termux command."))
+            )
+        }
+    }
+
+    fun readTermuxResult(intent: Intent): Map<String, Any?> {
+        val bundle = intent.getBundleExtra(RESULT_BUNDLE)
+        if (bundle == null) {
+            return mapOf("ok" to false, "error" to "Termux returned no result bundle.")
+        }
+        val stdout = bundle.getString("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_STDOUT", "").orEmpty()
+        val stderr = bundle.getString("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_STDERR", "").orEmpty()
+        val exitCode = bundle.getInt("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_EXIT_CODE", -1)
+        val errorCode = bundle.getInt("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_ERR", -1)
+        val errorMessage = bundle.getString("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_ERRMSG", "").orEmpty()
+        val ok = errorCode == -1 && exitCode == 0 && stdout.contains("CLAWDSTUDIO_TERMUX_OK")
+        return mapOf(
+            "ok" to ok,
+            "stdout" to stdout.take(4000),
+            "stderr" to stderr.take(2000),
+            "exitCode" to exitCode,
+            "errorCode" to errorCode,
+            "errorMessage" to errorMessage.take(2000),
+            "error" to if (ok) null else "Termux diagnostic did not return the expected marker and successful exit code.",
+        )
+    }
+}
