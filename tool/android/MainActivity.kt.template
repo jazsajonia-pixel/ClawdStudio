@@ -19,7 +19,6 @@ class MainActivity : FlutterActivity() {
         private const val RUN_COMMAND_PERMISSION = "com.termux.permission.RUN_COMMAND"
         private const val RUN_COMMAND_ACTION = "com.termux.RUN_COMMAND"
         private const val RUN_COMMAND_SERVICE = "com.termux.app.RunCommandService"
-        private const val RESULT_BUNDLE = "com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE"
         private val nextExecutionId = AtomicInteger(1000)
         private val pendingResults = ConcurrentHashMap<Int, MethodChannel.Result>()
         private val mainHandler = Handler(Looper.getMainLooper())
@@ -87,7 +86,7 @@ class MainActivity : FlutterActivity() {
         val callbackIntent = Intent(this, TermuxResultReceiver::class.java)
             .putExtra("clawdstudio_execution_id", executionId)
         val pendingIntentFlags = PendingIntent.FLAG_ONE_SHOT or
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
+            (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0)
         val callback = PendingIntent.getBroadcast(
             this,
             executionId,
