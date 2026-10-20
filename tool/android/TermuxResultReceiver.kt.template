@@ -9,15 +9,15 @@ class TermuxResultReceiver : BroadcastReceiver() {
         val executionId = intent.getIntExtra("clawdstudio_execution_id", -1)
         if (executionId < 0) return
 
-        val bundle = intent.getBundleExtra("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE")
+        val bundle = intent.getBundleExtra("result")
         val payload: Map<String, Any?> = if (bundle == null) {
             mapOf("ok" to false, "error" to "Termux returned no result bundle.")
         } else {
-            val stdout = bundle.getString("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_STDOUT", "").orEmpty()
-            val stderr = bundle.getString("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_STDERR", "").orEmpty()
-            val exitCode = bundle.getInt("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_EXIT_CODE", -1)
-            val errorCode = bundle.getInt("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_ERR", -1)
-            val errorMessage = bundle.getString("com.termux.service.EXTRA_PLUGIN_RESULT_BUNDLE_ERRMSG", "").orEmpty()
+            val stdout = bundle.getString("stdout", "").orEmpty()
+            val stderr = bundle.getString("stderr", "").orEmpty()
+            val exitCode = bundle.getInt("exitCode", -1)
+            val errorCode = bundle.getInt("err", -1)
+            val errorMessage = bundle.getString("errmsg", "").orEmpty()
             val ok = errorCode == -1 && exitCode == 0 && stdout.contains("CLAWDSTUDIO_TERMUX_OK")
             mapOf(
                 "ok" to ok,
