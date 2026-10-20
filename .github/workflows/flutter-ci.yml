@@ -32,6 +32,8 @@ jobs:
         run: flutter pub get
       - name: Check formatting
         run: dart format --set-exit-if-changed .
+      - name: Check diff whitespace
+        run: git diff --check
       - name: Analyze
         run: flutter analyze
       - name: Test
