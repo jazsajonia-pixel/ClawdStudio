@@ -1,0 +1,17 @@
+package __PACKAGE_NAME__
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+
+class TermuxResultReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val executionId = intent.getIntExtra("clawdstudio_execution_id", -1)
+        if (executionId < 0) return
+        val activity = MainActivity()
+        MainActivity.deliverTermuxResult(
+            executionId,
+            activity.readTermuxResult(intent)
+        )
+    }
+}
