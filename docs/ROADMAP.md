@@ -4,7 +4,9 @@ This is a plan, not a completion claim.
 - [x] Inspect target repository, upstream metadata/source and license.
 - [x] Add Flutter UI foundation, honest capability states, widget tests and CI workflow.
 - [x] Research Android runtime options and document the provisional Termux path.
-- [ ] Implement native Termux intent/result adapter and setup diagnostics.
+- [x] Implement initial native Termux status/diagnostic method channel, fixed printf command, result callback, timeout and setup UI.
+- [x] Pass CI for the native adapter and compile the generated Android manifest/package wiring (run #39429069442, commit `70dbe1c`).
+- [ ] Verify the diagnostic on a physical Android phone with Termux installed and permissions configured.
 - [ ] Add a fixed headless entry point for the real upstream agent loop.
 - [ ] Verify a real prompt and one safe tool call in a disposable workspace on a physical Android device.
 - [ ] Implement secure provider configuration and a connection test.

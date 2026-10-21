@@ -1,0 +1,34 @@
+package __PACKAGE_NAME__
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+
+class TermuxResultReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val executionId = intent.getIntExtra("clawdstudio_execution_id", -1)
+        if (executionId < 0) return
+
+        val bundle = intent.getBundleExtra("result")
+        val payload: Map<String, Any?> = if (bundle == null) {
+            mapOf("ok" to false, "error" to "Termux returned no result bundle.")
+        } else {
+            val stdout = bundle.getString("stdout", "").orEmpty()
+            val stderr = bundle.getString("stderr", "").orEmpty()
+            val exitCode = bundle.getInt("exitCode", -1)
+            val errorCode = bundle.getInt("err", -1)
+            val errorMessage = bundle.getString("errmsg", "").orEmpty()
+            val ok = errorCode == -1 && exitCode == 0 && stdout.contains("CLAWDSTUDIO_TERMUX_OK")
+            mapOf(
+                "ok" to ok,
+                "stdout" to stdout.take(4000),
+                "stderr" to stderr.take(2000),
+                "exitCode" to exitCode,
+                "errorCode" to errorCode,
+                "errorMessage" to errorMessage.take(2000),
+                "error" to if (ok) null else "Termux diagnostic did not return the expected marker and successful exit code.",
+            )
+        }
+        MainActivity.deliverTermuxResult(executionId, payload)
+    }
+}
